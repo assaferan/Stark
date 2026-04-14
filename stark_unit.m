@@ -445,18 +445,43 @@ procedure testPhi(u, v, z, CC, M)
 end procedure;
 
 // Needs to handle the case where the primitive character is trivial.
-function lfunc(chi, prec)
-  //chi0 := AssociatedPrimitiveCharacter(chi);
-  //Lchi0 := LSeries(chi0 : Precision := prec);
+function lfunc_der(chi, CC)
+  chi0 := AssociatedPrimitiveCharacter(chi);
+  Lchi0 := LSeries(chi0 : Precision := Precision(CC));
   m := Modulus(chi);
-  //f := Modulus(chi0);
+  f := Modulus(chi0);
+  // prime divisors of m that do not divide f
+  ps := [p[1] : p in Factorization(m div (m + f))];
+  // if there are none, Lchi = Lchi0
+  if #ps eq 0 then
+    return Evaluate(Lchi0, 0 : Derivative := 1);
+  end if;
+  // if m = p^e is a prime power
+  if #ps eq 1 then
+    // if chi0 is trivial, L*(s) has poles and we need to be careful
+    O := Order(f);
+    if f eq 1*O then
+      h := ClassNumber(O);
+      w := #UnitGroup(O);
+      val0 := -h/w;
+    else
+      val0 := Evaluate(Lchi0, 0);
+    end if;
+    return val0 * Log(CC!Norm(ps[1]));
+  end if;
+  // If not a prime power, this is 0
+  return 0;
+  // end if;
+
+  /*
   F := NumberField(Order(Modulus(chi)));
   function local_factor(p, d : Precision := 0)
     _<T> := PolynomialRing(Integers());
     return &*[1 - chi(pp)*T^Degree(ResidueClassField(pp)) : pp in PrimeIdealsOverPrime(F,p)];
   end function;
   cond := -Discriminant(F) * Norm(m);
-  Lchi := LSeries(1, [0,1], cond, local_factor : Sign := chi(-1), Poles := [1], Precision := prec);
+  Lchi := LSeries(1, [0,1], cond, local_factor : Sign := chi(-1), Precision := prec);
+  */
   /*
   for pe in Factorization(m div (m+f)) do
     P := pe[1];
@@ -486,12 +511,10 @@ function testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   CC<i> := ComplexField(prec);
   X := HeckeCharacterGroup(frakf);
   // checking Stark's equation holds for all chi in X
-  eps := 10^(-5);
+  eps := 10^(-20);
   for chi in Elements(X) do
     unit_eqn := -1/(6*f*w_frakf) * &+[chi(m_rcgf(c))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC))) : c in rcgf];
-    chi0 := AssociatedPrimitiveCharacter(chi);
-    Lchi := LSeries(chi : Precision := prec);
-    Lvalue := Evaluate(Lchi, 0 : Derivative := 1);
+    Lvalue := lfunc_der(chi, CC);
     assert Abs(Lvalue - unit_eqn) lt eps;
   end for;
 end function;
