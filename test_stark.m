@@ -1,31 +1,29 @@
 import "stark_unit.m" : StarkE;
 
 function lfunc_der(chi, CC)
-  chi0 := AssociatedPrimitiveCharacter(chi);
-  Lchi0 := LSeries(chi0 : Precision := Precision(CC));
-  m := Modulus(chi);
-  f := Modulus(chi0);
-  // prime divisors of m that do not divide f
-  ps := [p[1] : p in Factorization(m div (m + f))];
-  // if there are none, Lchi = Lchi0
-  if #ps eq 0 then
-    return Evaluate(Lchi0, 0 : Derivative := 1);
-  end if;
-  // if m = p^e is a prime power
-  if #ps eq 1 then
+    chi0 := AssociatedPrimitiveCharacter(chi);
+    Lchi0 := LSeries(chi0 : Precision := Precision(CC));
+    m := Modulus(chi);
+    f := Modulus(chi0);
+    // prime divisors of m that do not divide f
+    ps := [p[1] : p in Factorization(m div (m + f))];
+    // Here, P = prod_{p in ps} (1 - chi0(p)Np^(-s))
+    // so that P(0) = prod_{p in ps} (1 - chi0(p))
+    // and P'(0) = sum_{p in ps} prod_{q ne p} (1 - chi0(q)) chi0(p) log(Np)
+    P0 := &*[CC | 1 - chi0(p) : p in ps];
+    P0_der := &+[CC | &*[CC | 1 - chi0(q) : q in ps | q ne p]*(CC!chi0(p))*Log(CC!Norm(p)) : p in ps];
     // if chi0 is trivial, L*(s) has poles and we need to be careful
     O := Order(f);
     if f eq 1*O then
-      h := ClassNumber(O);
-      w := #UnitGroup(O);
-      val0 := -h/w;
+        h := ClassNumber(O);
+        w := #UnitGroup(O);
+        val0 := -h/w;
+        der0 := 0;
     else
-      val0 := Evaluate(Lchi0, 0);
+        val0 := Evaluate(Lchi0, 0);
+        der0 := Evaluate(Lchi0, 0 : Derivative := 1);
     end if;
-    return val0 * Log(CC!Norm(ps[1]));
-  end if;
-  // If not a prime power, this is 0
-  return 0;
+    return P0*der0 + P0_der*val0;
 end function;
 
 // test for an abelian extension of an imaginary quadratic
