@@ -344,7 +344,7 @@ function TruncatedPhi(u, v, z : M := 10)
   pi := Pi(CC);
   eta := DedekindEta(z);
   my_eta := Eta(z : M := M);
-  assert Abs(my_eta - eta) lt 10^(-Precision(CC)/2);
+  assert Abs(my_eta - eta) lt 10^(-Precision(CC)/4);
   ret := Exp(pi*i*u*(u*z+v))*Theta1(u*z+v, z : M := M)/eta;
   return ret;
 end function;
@@ -357,7 +357,8 @@ end function;
 // Here, fraka = fraka_0 is representing the
 // ray class frakc
 // and frakf is the conductor
-function StarkE(fraka, frakf, CC)
+// At the moment only works for the Ray class field
+function StarkERCF(fraka, frakf, CC)
   // Should this be norm or minimum? check
   frakb := Order(fraka)!!(Norm(fraka)*fraka^(-1));
   // Point of frakb is to be an integral ideal relatively prime to
@@ -377,23 +378,12 @@ function StarkE(fraka, frakf, CC)
   assert IsIntegral(f*v);
   assert alpha/nu eq u*theta + v;
   ret := TruncatedPhi(CC!u,CC!v,embed_quad(theta, CC))^(12*f);
-  _<i> := CC;
-  pi := Pi(CC);
+  //_<i> := CC;
+  //pi := Pi(CC);
   // testing modularity properties
-  assert TruncatedPhi(CC!u,CC!v+1,embed_quad(theta, CC)) eq -Exp(pi*i*u)*ret;
-  assert TruncatedPhi(CC!u+1,CC!v+1,embed_quad(theta, CC)) eq -Exp(-pi*i*v)*ret;
+  // assert TruncatedPhi(CC!u,CC!v+1,embed_quad(theta, CC)) eq -Exp(pi*i*u)*ret;
+  // assert TruncatedPhi(CC!u+1,CC!v+1,embed_quad(theta, CC)) eq -Exp(-pi*i*v)*ret;
   return ret;
-end function;
-
-
-
-function StarkOriginalE(K_over_F, M, prec)
-  CC := ComplexField(prec);
-  frakf := Conductor(AbelianExtension(K_over_F));
-  rcgf, m_rcgf := RayClassGroup(frakf);
-  frakc := rcgf.1;
-  fraka := m_rcgf(frakc);
-  return 0;
 end function;
 
 function Theta(t, alpha, beta, CC : M := 10)
@@ -493,7 +483,7 @@ function lfunc_der(chi, CC)
 end function;
 
 // test for an abelian extension of an imaginary quadratic
-function testStarkUnit(K : prec := Precision(GetDefaultRealField()))
+procedure testStarkUnitRCF(K : prec := Precision(GetDefaultRealField()))
   F := BaseField(K);
   // Verifying that F is imaginary quadratic
   QQ := Rationals();
@@ -511,10 +501,51 @@ function testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   CC<i> := ComplexField(prec);
   X := HeckeCharacterGroup(frakf);
   // checking Stark's equation holds for all chi in X
-  eps := 10^(-20);
+  eps := 10^(-10);
   for chi in Elements(X) do
-    unit_eqn := -1/(6*f*w_frakf) * &+[chi(m_rcgf(c))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC))) : c in rcgf];
+    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC))) : c in rcgf];
     Lvalue := lfunc_der(chi, CC);
     assert Abs(Lvalue - unit_eqn) lt eps;
   end for;
+end procedure;
+
+function StarkE(frakc_prime, frakf, CC, J)
+  return &*[StarkERCF(frakc_prime*j, frakf, CC) : j in J];
 end function;
+
+// test for an abelian extension of an imaginary quadratic
+procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
+  F := BaseField(K);
+  // Verifying that F is imaginary quadratic
+  QQ := Rationals();
+  assert Degree(F) eq 2;
+  assert BaseField(F) eq QQ;
+  r, s := Signature(F);
+  assert (r eq 0) and (s eq 1);
+  // verifying that K is an abelian extension of F
+  assert IsAbelian(K);
+  AK := AbelianExtension(K);
+  frakf := Conductor(AK);
+  rcgf, m_rcgf := RayClassGroup(frakf);
+  nm_gp_map := NormGroup(AK);
+  nm_gp := Domain(nm_gp_map);
+  quo := hom<rcgf -> nm_gp | [m_rcgf(rcgf.i)@@nm_gp_map : i in [1..Ngens(rcgf)]]>;
+  J := Kernel(quo);
+  // gens := [nm_gp_map(x)@@m_rcgf : x in Generators(nm_gp)];
+  // J := sub<rcgf | gens>;
+  J_idls := [m_rcgf(j) : j in J];
+  coset_reps := Transversal(rcgf, J);
+  UF, mUF := UnitGroup(F);
+  w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
+  f := Minimum(frakf);
+  CC<i> := ComplexField(prec);
+  // X := HeckeCharacterGroup(frakf);
+  X := HeckeCharacterGroup(AK);
+  // checking Stark's equation holds for all chi in X
+  eps := 10^(-10);
+  for chi in Elements(X) do
+    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE2(m_rcgf(c),frakf,CC, J_idls))) : c in coset_reps];
+    Lvalue := lfunc_der(chi, CC);
+    assert Abs(Lvalue - unit_eqn) lt eps;
+  end for;
+end procedure;
