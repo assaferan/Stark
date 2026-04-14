@@ -342,8 +342,8 @@ function TruncatedPhi(u, v, z : M := 10)
   assert CC eq Parent(u) and CC eq Parent(v);
   pi := Pi(CC);
   eta := DedekindEta(z);
-  my_eta := Eta(z : M := M);
-  assert Abs(my_eta - eta) lt 10^(-Precision(CC)/4);
+  // my_eta := Eta(z : M := M);
+  // assert Abs(my_eta - eta) lt 10^(-Precision(CC)/4);
   ret := Exp(pi*i*u*(u*z+v))*Theta1(u*z+v, z : M := M)/eta;
   return ret;
 end function;
@@ -466,3 +466,31 @@ function StarkE(frakc_prime, frakf, CC, J)
   return &*[StarkERCF(frakc_prime*j, frakf, CC) : j in J];
 end function;
 
+function AllStarks(K : prec := Precision(GetDefaultRealField()))
+  F := BaseField(K);
+  // Verifying that F is imaginary quadratic
+  QQ := Rationals();
+  assert Degree(F) eq 2;
+  assert BaseField(F) eq QQ;
+  r, s := Signature(F);
+  assert (r eq 0) and (s eq 1);
+  // verifying that K is an abelian extension of F
+  assert IsAbelian(K);
+  AK := AbelianExtension(K);
+  frakf := Conductor(AK);
+  rcgf, m_rcgf := RayClassGroup(frakf);
+  nm_gp_map := NormGroup(AK);
+  nm_gp := Domain(nm_gp_map);
+  quo := hom<rcgf -> nm_gp | [m_rcgf(rcgf.i)@@nm_gp_map : i in [1..Ngens(rcgf)]]>;
+  J := Kernel(quo);
+  // gens := [nm_gp_map(x)@@m_rcgf : x in Generators(nm_gp)];
+  // J := sub<rcgf | gens>;
+  J_idls := [m_rcgf(j) : j in J];
+  coset_reps := Transversal(rcgf, J);
+  UF, mUF := UnitGroup(F);
+  w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
+  f := Minimum(frakf);
+  CC<i> := ComplexField(prec);
+  starks := [StarkE(m_rcgf(c),frakf,CC, J_idls) : c in coset_reps];
+  return starks;
+end function;

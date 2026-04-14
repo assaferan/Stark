@@ -82,10 +82,11 @@ procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   // X := HeckeCharacterGroup(frakf);
   X := HeckeCharacterGroup(AK);
   // checking Stark's equation holds for all chi in X
-  eps := 10^(-10);
+  eps := 10^(-20);
   for chi in Elements(X) do
     unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC, J_idls))) : c in coset_reps];
     Lvalue := lfunc_der(chi, CC);
+    print Abs(Lvalue - unit_eqn);
     assert Abs(Lvalue - unit_eqn) lt eps;
   end for;
 end procedure;
@@ -94,7 +95,7 @@ end procedure;
 F := CyclotomicField(3);
 K := CyclotomicField(12);
 testStarkUnit(RelativeField(F,K) : prec := 100);
-// testing a quadratic ray class field
+// testing the same
 Fx<x> := PolynomialRing(F);
 K := ext<F | x^2 + 1>;
 testStarkUnit(K : prec := 100);
