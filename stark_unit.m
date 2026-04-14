@@ -1,4 +1,3 @@
-
 // This function returns the polynmoial f described in A.1, together with beta
 function AlgebraicPolynomial()
   _<x> := PolynomialRing(Rationals());
@@ -244,11 +243,11 @@ procedure other_code_I_ran()
   L_S_chi := func<s | &+[chi(sigma)*L_S(s, sigma) : sigma in G]>;
 end procedure;
 
-function embed_quad(tau, CC)
+function embed_quad(tau, CC : Sign := 1)
   t := CC!Trace(tau);
   n := CC!Norm(tau);
   tau_CC := 1/2*(t+Sqrt(t^2 - 4*n));
-  if Im(tau_CC) lt 0 then
+  if Im(tau_CC)*Sign lt 0 then
     tau_CC := ComplexConjugate(tau_CC);
   end if;
   return tau_CC;
@@ -300,7 +299,7 @@ function StarkUnitImaginaryQuadratic(K_over_F, M, prec)
   rcgN, m_rcgN := RayClassGroup(frakN);
   // For our example, W(K) = 6, W(FN) = 42
   FN := AbsoluteField(NumberField(RayClassField(frakN)));
-  w := W(K) / W(FN);
+  w := W(K_over_F) / W(FN);
   s := 1;
   for rcg_elt in rcgN do
     a := m_rcgN(rcg_elt);
@@ -349,6 +348,23 @@ function TruncatedPhi(u, v, z : M := 10)
   return ret;
 end function;
 
+// We try to use transformation properties to amke it more accurate
+function TruncatedPhiNew(u, v, z : M := 10)
+  CC<i> := Parent(z);
+  pi := Pi(CC);
+  n_v := Floor(v);
+  if n_v ne 0 then
+    return (-1)^n_v*Exp(pi*i*u*n_v)*TruncatedPhiNew(u, v - n_v, z : M := M);
+  end if;
+  n_u := Floor(u);
+  if n_u ne 0 then
+    return (-1)^n_u*Exp(pi*i*v*n_u)*TruncatedPhiNew(u - n_u, v, z : M := M);
+  end if;
+  // Now both u and v are in [0,1)
+  // Q : Should we also bring z to the fundamental domain?
+  return TruncatedPhi(u,v,z : M := M);
+end function;
+
 function F(r,s,z, N : M := 10)
   return TruncatedPhi(r/N, s/N, z)^(12*N);
 end function;
@@ -359,8 +375,10 @@ end function;
 // and frakf is the conductor
 // At the moment only works for the Ray class field
 function StarkERCF(fraka, frakf, CC)
+  O := Order(fraka);
+  F := NumberField(O);
   // Should this be norm or minimum? check
-  frakb := Order(fraka)!!(Norm(fraka)*fraka^(-1));
+  frakb := O!!(Norm(fraka)*fraka^(-1));
   // Point of frakb is to be an integral ideal relatively prime to
   // frakf such that ab is principal.
   assert IsIntegral(frakb);
@@ -368,7 +386,7 @@ function StarkERCF(fraka, frakf, CC)
   is_principal, alpha := IsPrincipal(fraka*frakb);
   assert is_principal;
   mu, nu := Explode(Basis(frakb*frakf));
-  theta := mu/nu;
+  theta := (F!mu)/(F!nu);
   mat_bf := Matrix(Rationals(), [Eltseq(bb) : bb in [mu,nu]]);
   sol := Solution(mat_bf, Vector(Rationals(),Eltseq(alpha)));
   u,v := Explode(Eltseq(sol));
@@ -377,7 +395,16 @@ function StarkERCF(fraka, frakf, CC)
   assert IsIntegral(f*u);
   assert IsIntegral(f*v);
   assert alpha/nu eq u*theta + v;
-  ret := TruncatedPhi(CC!u,CC!v,embed_quad(theta, CC))^(12*f);
+  // we want theta, u theta  + v in H
+  // so u must be positive
+  // replacing mu by -mu, leads to replacing u by -u
+  // and theta by -theta
+  if u lt 0 then
+    u := -u;
+    theta := -theta;
+  end if;
+  theta_CC := embed_quad(theta, CC);
+  ret := TruncatedPhiNew(CC!u,CC!v,theta_CC)^(12*f);
   //_<i> := CC;
   //pi := Pi(CC);
   // testing modularity properties
@@ -392,13 +419,13 @@ function Theta(t, alpha, beta, CC : M := 10)
   pi := Pi(CC);
   s := 0;
   for m in [-M..M] do
-    s +:= Exp(-pi*t*(n + alpha)^2 + 2*pi*i*n*beta);
+    s +:= Exp(-pi*t*(m + alpha)^2 + 2*pi*i*m*beta);
   end for;
   return s;
 end function;
 
 procedure testTheta(t, alpha, beta, prec, M)
-  C<i> := ComplexField(prec);
+  CC<i> := ComplexField(prec);
   pi := Pi(CC);
   // transformation formula
   theta := Theta(t,alpha, beta, CC : M := M);
@@ -408,7 +435,8 @@ procedure testTheta(t, alpha, beta, prec, M)
 end procedure;
 
 procedure testTheta1(gamma, z, prec, M)
-  C<i> := ComplexField(prec);
+  CC<i> := ComplexField(prec);
+  pi := Pi(CC);
   theta := Theta(-i*z, CC!1/2, gamma - 1/2, CC : M := M);
   theta1 := Theta1(gamma, z : M := M);
   eps := 1; // ? This should depend on the sizes of gamma and z
@@ -434,118 +462,7 @@ procedure testPhi(u, v, z, CC, M)
   assert Abs(phi - tr_phi) lt eps;
 end procedure;
 
-// Needs to handle the case where the primitive character is trivial.
-function lfunc_der(chi, CC)
-  chi0 := AssociatedPrimitiveCharacter(chi);
-  Lchi0 := LSeries(chi0 : Precision := Precision(CC));
-  m := Modulus(chi);
-  f := Modulus(chi0);
-  // prime divisors of m that do not divide f
-  ps := [p[1] : p in Factorization(m div (m + f))];
-  // if there are none, Lchi = Lchi0
-  if #ps eq 0 then
-    return Evaluate(Lchi0, 0 : Derivative := 1);
-  end if;
-  // if m = p^e is a prime power
-  if #ps eq 1 then
-    // if chi0 is trivial, L*(s) has poles and we need to be careful
-    O := Order(f);
-    if f eq 1*O then
-      h := ClassNumber(O);
-      w := #UnitGroup(O);
-      val0 := -h/w;
-    else
-      val0 := Evaluate(Lchi0, 0);
-    end if;
-    return val0 * Log(CC!Norm(ps[1]));
-  end if;
-  // If not a prime power, this is 0
-  return 0;
-  // end if;
-
-  /*
-  F := NumberField(Order(Modulus(chi)));
-  function local_factor(p, d : Precision := 0)
-    _<T> := PolynomialRing(Integers());
-    return &*[1 - chi(pp)*T^Degree(ResidueClassField(pp)) : pp in PrimeIdealsOverPrime(F,p)];
-  end function;
-  cond := -Discriminant(F) * Norm(m);
-  Lchi := LSeries(1, [0,1], cond, local_factor : Sign := chi(-1), Precision := prec);
-  */
-  /*
-  for pe in Factorization(m div (m+f)) do
-    P := pe[1];
-    p := Minimum(P);
-    euler := &*[EulerFactor(Lchi0, pp) div (1 - chi0(pp)*T) : pp in PrimeIdealsOverPrime(F,p)];
-    Lchi := ChangeEulerFactor(Lchi0, p, euler);
-  end for;
-  */
-end function;
-
-// test for an abelian extension of an imaginary quadratic
-procedure testStarkUnitRCF(K : prec := Precision(GetDefaultRealField()))
-  F := BaseField(K);
-  // Verifying that F is imaginary quadratic
-  QQ := Rationals();
-  assert Degree(F) eq 2;
-  assert BaseField(F) eq QQ;
-  r, s := Signature(F);
-  assert (r eq 0) and (s eq 1);
-  // verifying that K is an abelian extension of F
-  assert IsAbelian(K);
-  frakf := Conductor(AbelianExtension(K));
-  rcgf, m_rcgf := RayClassGroup(frakf);
-  UF, mUF := UnitGroup(F);
-  w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
-  f := Minimum(frakf);
-  CC<i> := ComplexField(prec);
-  X := HeckeCharacterGroup(frakf);
-  // checking Stark's equation holds for all chi in X
-  eps := 10^(-10);
-  for chi in Elements(X) do
-    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC))) : c in rcgf];
-    Lvalue := lfunc_der(chi, CC);
-    assert Abs(Lvalue - unit_eqn) lt eps;
-  end for;
-end procedure;
-
 function StarkE(frakc_prime, frakf, CC, J)
   return &*[StarkERCF(frakc_prime*j, frakf, CC) : j in J];
 end function;
 
-// test for an abelian extension of an imaginary quadratic
-procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
-  F := BaseField(K);
-  // Verifying that F is imaginary quadratic
-  QQ := Rationals();
-  assert Degree(F) eq 2;
-  assert BaseField(F) eq QQ;
-  r, s := Signature(F);
-  assert (r eq 0) and (s eq 1);
-  // verifying that K is an abelian extension of F
-  assert IsAbelian(K);
-  AK := AbelianExtension(K);
-  frakf := Conductor(AK);
-  rcgf, m_rcgf := RayClassGroup(frakf);
-  nm_gp_map := NormGroup(AK);
-  nm_gp := Domain(nm_gp_map);
-  quo := hom<rcgf -> nm_gp | [m_rcgf(rcgf.i)@@nm_gp_map : i in [1..Ngens(rcgf)]]>;
-  J := Kernel(quo);
-  // gens := [nm_gp_map(x)@@m_rcgf : x in Generators(nm_gp)];
-  // J := sub<rcgf | gens>;
-  J_idls := [m_rcgf(j) : j in J];
-  coset_reps := Transversal(rcgf, J);
-  UF, mUF := UnitGroup(F);
-  w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
-  f := Minimum(frakf);
-  CC<i> := ComplexField(prec);
-  // X := HeckeCharacterGroup(frakf);
-  X := HeckeCharacterGroup(AK);
-  // checking Stark's equation holds for all chi in X
-  eps := 10^(-10);
-  for chi in Elements(X) do
-    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE2(m_rcgf(c),frakf,CC, J_idls))) : c in coset_reps];
-    Lvalue := lfunc_der(chi, CC);
-    assert Abs(Lvalue - unit_eqn) lt eps;
-  end for;
-end procedure;
