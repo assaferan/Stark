@@ -1,5 +1,7 @@
 import "stark_unit.m" : StarkE;
 
+// Magma has troubles with impriimitive characters,
+// so we work it out here
 function lfunc_der(chi, CC)
     chi0 := AssociatedPrimitiveCharacter(chi);
     Lchi0 := LSeries(chi0 : Precision := Precision(CC));
@@ -82,7 +84,8 @@ procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   // X := HeckeCharacterGroup(frakf);
   X := HeckeCharacterGroup(AK);
   // checking Stark's equation holds for all chi in X
-  eps := 10^(-20);
+  // Not sure what is the correct precision bound
+  eps := 10^((-prec + 2) div Degree(K));
   for chi in Elements(X) do
     unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC, J_idls))) : c in coset_reps];
     Lvalue := lfunc_der(chi, CC);
