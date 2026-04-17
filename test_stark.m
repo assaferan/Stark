@@ -1,3 +1,4 @@
+AttachSpec("../CHIMP/CHIMP.spec"); // for NumberFieldExtra and AlgebraizeElementExtra
 import "stark_unit.m" : StarkE;
 
 // Magma has troubles with impriimitive characters,
@@ -29,7 +30,8 @@ function lfunc_der(chi, CC)
 end function;
 
 // test for an abelian extension of an imaginary quadratic
-procedure testStarkUnitRCF(K : prec := Precision(GetDefaultRealField()))
+// B is the norm bound to test reciprocity
+procedure testStarkUnitRCF(K : prec := Precision(GetDefaultRealField()), B := 100)
   F := BaseField(K);
   // Verifying that F is imaginary quadratic
   QQ := Rationals();
@@ -103,9 +105,12 @@ procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   Kextra, root := NumberFieldExtra(DefiningPolynomial(Kabs) : prec := prec);
   Kabs_to_Kextra := hom<Kabs -> Kextra | root>;
   K_to_Kextra := K_to_Kabs * Kabs_to_Kextra;
-  for c in coset_reps do
-    in_K, E_alg[c] := AlgebraizeElementExtra(E[c], Kextra);
-    assert in_K;
+  starks := [E[c] : c in coset_reps];
+  in_K, starks_alg := AlgebraizeElementsExtra(starks, Kextra);
+  error if not in_K, "Could not find element in K, please increase precision!";
+  for i->c in coset_reps do
+    // in_K, E_alg[c] := AlgebraizeElementExtra(E[c], Kextra);
+    E_alg[c] := starks_alg[i];
     assert IsIntegral(E_alg[c]);
   end for;
   B := 100;
@@ -126,4 +131,4 @@ testStarkUnit(K : prec := 100);
 // testing a quadratic extension which is not a ray 
 // class field
 K := ext<F | x^2 - 2>;
-testStarkUnit(K : prec := 100);
+testStarkUnit(K : prec := 200);
