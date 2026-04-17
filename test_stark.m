@@ -31,34 +31,7 @@ end function;
 
 // test for an abelian extension of an imaginary quadratic
 // B is the norm bound to test reciprocity
-procedure testStarkUnitRCF(K : prec := Precision(GetDefaultRealField()), B := 100)
-  F := BaseField(K);
-  // Verifying that F is imaginary quadratic
-  QQ := Rationals();
-  assert Degree(F) eq 2;
-  assert BaseField(F) eq QQ;
-  r, s := Signature(F);
-  assert (r eq 0) and (s eq 1);
-  // verifying that K is an abelian extension of F
-  assert IsAbelian(K);
-  frakf := Conductor(AbelianExtension(K));
-  rcgf, m_rcgf := RayClassGroup(frakf);
-  UF, mUF := UnitGroup(F);
-  w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
-  f := Minimum(frakf);
-  CC<i> := ComplexField(prec);
-  X := HeckeCharacterGroup(frakf);
-  // checking Stark's equation holds for all chi in X
-  eps := 10^(-10);
-  for chi in Elements(X) do
-    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC))) : c in rcgf];
-    Lvalue := lfunc_der(chi, CC);
-    assert Abs(Lvalue - unit_eqn) lt eps;
-  end for;
-end procedure;
-
-// test for an abelian extension of an imaginary quadratic
-procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
+procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()), B := 100)
   F := BaseField(K);
   // Verifying that F is imaginary quadratic
   QQ := Rationals();
@@ -83,15 +56,18 @@ procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
   f := Minimum(frakf);
   CC<i> := ComplexField(prec);
-  // X := HeckeCharacterGroup(frakf);
-  X := HeckeCharacterGroup(AK);
+  has_root, root := HasRoot(DefiningPolynomial(K), CC);
+  assert has_root;
+  emb_CC := hom<K -> CC | root>;
   // checking Stark's equation holds for all chi in X
   // Not sure what is the correct precision bound
   E := AssociativeArray();
   for c in coset_reps do
-    E[c] := StarkE(m_rcgf(c),frakf,CC, J_idls);
+    E[c] := StarkE(m_rcgf(c),frakf, emb_CC, J_idls);
   end for;
   eps := 10^((-prec + 2) div Degree(K));
+  // X := HeckeCharacterGroup(frakf);
+  X := HeckeCharacterGroup(AK);
   for chi in Elements(X) do
     unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(E[c])) : c in coset_reps];
     Lvalue := lfunc_der(chi, CC);

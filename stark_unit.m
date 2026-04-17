@@ -93,7 +93,7 @@ end function;
 // ray class frakc
 // and frakf is the conductor
 // At the moment only works for the Ray class field
-function StarkERCF(fraka, frakf, CC)
+function StarkERCF(fraka, frakf, emb_CC)
   O := Order(fraka);
   F := NumberField(O);
   // Should this be norm or minimum? check
@@ -106,6 +106,12 @@ function StarkERCF(fraka, frakf, CC)
   assert is_principal;
   mu, nu := Explode(Basis(frakb*frakf));
   theta := (F!mu)/(F!nu);
+  theta_CC := emb_CC(theta);
+  if Im(theta_CC) lt 0 then
+    mu, nu := nu, mu;
+    theta := theta^(-1);
+    theta_CC := theta_CC^(-1);
+  end if;
   mat_bf := Matrix(Rationals(), [Eltseq(bb) : bb in [mu,nu]]);
   sol := Solution(mat_bf, Vector(Rationals(),Eltseq(alpha)));
   u,v := Explode(Eltseq(sol));
@@ -114,28 +120,13 @@ function StarkERCF(fraka, frakf, CC)
   assert IsIntegral(f*u);
   assert IsIntegral(f*v);
   assert alpha/nu eq u*theta + v;
-  // we want theta, u theta  + v in H
-  // so u must be positive
-  // replacing mu by -mu, leads to replacing u by -u
-  // and theta by -theta
-  if u lt 0 then
-    u := -u;
-    theta := -theta;
-  end if;
-  theta_CC := embed_quad(theta, CC);
-  // ret := TruncatedPhiNew(CC!u,CC!v,theta_CC)^(12*f);
   ret := StarkF(f*u, f*v, theta_CC, f);
-  //_<i> := CC;
-  //pi := Pi(CC);
-  // testing modularity properties
-  // assert TruncatedPhi(CC!u,CC!v+1,embed_quad(theta, CC)) eq -Exp(pi*i*u)*ret;
-  // assert TruncatedPhi(CC!u+1,CC!v+1,embed_quad(theta, CC)) eq -Exp(-pi*i*v)*ret;
   return ret;
 end function;
 
 // This is E(c') for an arbitrary abelian extension
-function StarkE(frakc_prime, frakf, CC, J)
-  return &*[StarkERCF(frakc_prime*j, frakf, CC) : j in J];
+function StarkE(frakc_prime, frakf, emb_CC, J)
+  return &*[StarkERCF(frakc_prime*j, frakf, emb_CC) : j in J];
 end function;
 
 // computes all the E(c) from [Stark, Lemma 7]
@@ -164,6 +155,9 @@ function AllStarks(K : prec := Precision(GetDefaultRealField()))
   w_frakf := #[u : u in UF | mUF(u) - 1 in frakf];
   f := Minimum(frakf);
   CC<i> := ComplexField(prec);
-  starks := [StarkE(m_rcgf(c),frakf,CC, J_idls) : c in coset_reps];
+  has_root, root := HasRoot(DefiningPolynomial(K), CC);
+  assert has_root;
+  emb_CC := hom<K -> CC | root>;
+  starks := [StarkE(m_rcgf(c),frakf, emb_CC, J_idls) : c in coset_reps];
   return starks;
 end function;
