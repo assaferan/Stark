@@ -85,13 +85,34 @@ procedure testStarkUnit(K : prec := Precision(GetDefaultRealField()))
   X := HeckeCharacterGroup(AK);
   // checking Stark's equation holds for all chi in X
   // Not sure what is the correct precision bound
+  E := AssociativeArray();
+  for c in coset_reps do
+    E[c] := StarkE(m_rcgf(c),frakf,CC, J_idls);
+  end for;
   eps := 10^((-prec + 2) div Degree(K));
   for chi in Elements(X) do
-    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(StarkE(m_rcgf(c),frakf,CC, J_idls))) : c in coset_reps];
+    unit_eqn := -1/(6*f*w_frakf) * &+[(CC!chi(m_rcgf(c)))*Log(AbsoluteValue(E[c])) : c in coset_reps];
     Lvalue := lfunc_der(chi, CC);
     print Abs(Lvalue - unit_eqn);
     assert Abs(Lvalue - unit_eqn) lt eps;
   end for;
+  // Testing the E(c) are algebraic integers in K
+  E_alg := AssociativeArray();
+  Kabs := AbsoluteField(K);
+  _, K_to_Kabs := IsIsomorphic(K, Kabs);
+  Kextra, root := NumberFieldExtra(DefiningPolynomial(Kabs) : prec := prec);
+  Kabs_to_Kextra := hom<Kabs -> Kextra | root>;
+  K_to_Kextra := K_to_Kabs * Kabs_to_Kextra;
+  for c in coset_reps do
+    in_K, E_alg[c] := AlgebraizeElementExtra(E[c], Kextra);
+    assert in_K;
+    assert IsIntegral(E_alg[c]);
+  end for;
+  B := 100;
+  ps := [p : p in PrimesUpTo(B, F : coprime_to := frakf) | IsSplit(p)];
+  ps_Kextra := [&+[K_to_Kextra(b)*Integers(Kextra) : b in Basis(p)] : p in ps];
+  // Testing reciprocity
+  assert &and[&and[E_alg[c]^Norm(ps[i]) - E_alg[(m_rcgf(c)*ps[i])@@m_rcgf] in p : c in coset_reps] : i->p in ps_Kextra];
 end procedure;
 
 // testing a cyclotomic field extension
